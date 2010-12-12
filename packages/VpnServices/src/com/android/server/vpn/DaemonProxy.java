@@ -78,6 +78,32 @@ class DaemonProxy implements Serializable {
         }
     }
 
+    String receiveRequest() throws IOException {
+        InputStream in = getControlSocketInput();
+
+        int length = in.read();
+        if (length == -1) // EOF
+            return null;
+
+        Log.d(mTag, "trying to read " + length + " bytes from socket");
+
+        byte[] bytes = new byte[length];
+
+        int offset = 0;
+        while (offset < length) {
+            int rv = in.read(bytes, offset, length - offset);
+            if (rv == -1)
+                break;
+            offset += rv;
+        }
+
+        String str = new String(bytes);
+        Log.d(mTag, "received request " + offset + "/" + length +
+                "  bytes: " + str);
+
+        return str;
+    }
+
     void sendCommand(String ...args) throws IOException {
         OutputStream out = getControlSocketOutput();
         for (String arg : args) outputString(out, arg);
@@ -150,6 +176,14 @@ class DaemonProxy implements Serializable {
             }
         }
         throw excp;
+    }
+
+    private InputStream getControlSocketInput() throws IOException {
+        if (mControlSocket != null) {
+            return mControlSocket.getInputStream();
+        } else {
+            throw new IOException("no control socket available");
+        }
     }
 
     private OutputStream getControlSocketOutput() throws IOException {

@@ -16,6 +16,13 @@
             </intent-filter>
         </service>
 
+        <activity android:name=".OpenconnectRequestActivity"
+                android:label="Openconnect request">
+                <!--android:theme="@android:style/Theme.Dialog"-->
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.DEFAULT" />
+        </activity>
+
     </application>
 
     <uses-permission android:name="android.permission.INTERNET"></uses-permission>

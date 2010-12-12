@@ -29,7 +29,9 @@ public enum VpnType {
             L2tpIpsecPskProfile.class),
     L2TP_IPSEC("L2TP/IPSec CRT", R.string.l2tp_ipsec_crt_vpn_description,
             L2tpIpsecProfile.class),
-    OPENVPN("OpenVPN", R.string.openvpn_vpn_description, OpenvpnProfile.class);
+    OPENVPN("OpenVPN", R.string.openvpn_vpn_description, OpenvpnProfile.class),
+    OPENCONNECT("Openconnect", R.string.openconnect_vpn_description,
+            OpenconnectProfile.class);
 
     private String mDisplayName;
     private int mDescriptionId;

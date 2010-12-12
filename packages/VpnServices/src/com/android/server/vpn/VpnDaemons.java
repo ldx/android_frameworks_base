@@ -33,6 +33,7 @@ class VpnDaemons implements Serializable {
 
     private static final String MTPD = "mtpd";
     private static final String IPSEC = "racoon";
+    private static final String OPENCONNECT = "openconnect";
 
     private static final String L2TP = "l2tp";
     private static final String L2TP_PORT = "1701";
@@ -72,9 +73,26 @@ class VpnDaemons implements Serializable {
         return ipsec;
     }
 
+    public DaemonProxy startOpenconnect(String serverIp, String username,
+                    String password, String userKeyKey, String userCertKey,
+                    String caCertKey) throws IOException {
+        DaemonProxy oc = startDaemon(OPENCONNECT);
+        oc.sendCommand(serverIp, username, password, userKeyKey, userCertKey,
+                caCertKey);
+        return oc;
+    }
+
+    public DaemonProxy startOpenconnect(String serverIp, String username,
+                    String password) throws IOException {
+        DaemonProxy oc = startDaemon(OPENCONNECT);
+        oc.sendCommand(serverIp, username, password);
+        return oc;
+    }
+
     public synchronized void stopAll() {
         new DaemonProxy(MTPD).stop();
         new DaemonProxy(IPSEC).stop();
+        new DaemonProxy(OPENCONNECT).stop();
     }
 
     public synchronized void closeSockets() {
