@@ -24,6 +24,7 @@ import android.net.vpn.L2tpIpsecPskProfile;
 import android.net.vpn.L2tpProfile;
 import android.net.vpn.OpenvpnProfile;
 import android.net.vpn.PptpProfile;
+import android.net.vpn.OpenconnectProfile;
 import android.net.vpn.VpnManager;
 import android.net.vpn.VpnProfile;
 import android.net.vpn.VpnState;
@@ -179,6 +180,11 @@ public class VpnServiceBinder extends Service {
                 L2tpIpsecService l2tpIpsec = new L2tpIpsecService();
                 l2tpIpsec.setContext(this, (L2tpIpsecProfile) p);
                 return l2tpIpsec;
+
+            case OPENCONNECT:
+                OpenconnectService openconnect = new OpenconnectService();
+                openconnect.setContext(this, (OpenconnectProfile) p);
+                return openconnect;
 
             default:
                 return null;
