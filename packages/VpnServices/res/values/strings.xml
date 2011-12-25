@@ -6,5 +6,9 @@
     <string name="vpn_notification_title_connected"><xliff:g id="profilename">%s</xliff:g> VPN connected</string>
     <string name="vpn_notification_title_disconnected"><xliff:g id="profilename">%s</xliff:g> VPN disconnected</string>
     <string name="vpn_notification_hint_disconnected">Touch to reconnect to a VPN.</string>
+
+    <string name="vpn_openconnect_opttype">Openconnect option type</string>
+    <string name="vpn_openconnect_optname">Openconnect option name</string>
+    <string name="vpn_openconnect_optchoices">Openconnect option choices</string>
 </resources>
 

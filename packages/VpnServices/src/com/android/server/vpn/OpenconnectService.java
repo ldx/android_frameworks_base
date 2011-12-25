@@ -17,6 +17,8 @@
 package com.android.server.vpn;
 
 import android.net.vpn.OpenconnectProfile;
+import android.net.vpn.VpnManager;
+import android.net.vpn.VpnState;
 import android.security.Credentials;
 import android.util.Log;
 import android.app.AlertDialog;
@@ -27,7 +29,9 @@ import android.content.Intent;
 import android.content.IntentFilter;
 
 import java.io.IOException;
-import java.util.Arrays;
+import java.util.ArrayList;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ArrayBlockingQueue;
 
@@ -47,9 +51,27 @@ class OpenconnectService extends VpnService<OpenconnectProfile> {
 
     private DaemonProxy mDaemonProxy;
 
-    private BlockingQueue<String> mQueue = new ArrayBlockingQueue<String>(1);
-
     private ResponseReceiver mResponseReceiver = null;
+    private List<String>mResponseList = new LinkedList<String>();
+    private boolean mCancelled = false;
+
+    private void handleRequest(List<String> reqlist)
+    throws VpnConnectingError {
+        startRequestActivity(reqlist);
+
+        synchronized(mResponseList) {
+            try {
+                mResponseList.wait();
+            } catch (InterruptedException e) {
+                Log.d(TAG, "handleRequest() wait interrupted");
+            }
+            if (mCancelled)
+                throw new VpnConnectingError(VpnManager.VPN_ERROR_NO_ERROR);
+
+            sendResponse(mResponseList.toArray(new String[0]));
+            mResponseList.clear();
+        }
+    }
 
     @Override
     protected void connect(String serverIp, String username, String password)
@@ -67,38 +89,26 @@ class OpenconnectService extends VpnService<OpenconnectProfile> {
             mDaemonProxy = daemons.startOpenconnect(p.getServerName(),
                     username, password);
 
-        String response = null;
+        LinkedList<String> list = new LinkedList<String>();
         String req = mDaemonProxy.receiveRequest();
-        while (req != null) {
-            startRequestActivity(req);
-
-            try {
-                response = mQueue.take();
-            } catch (InterruptedException e) {
-                Log.d(TAG, "waiting for queue: " + e);
-                break;
+        while (req != null && !req.equals("X")) { // end of control
+            list.add(req);
+            if (req.equals("E")) { // end of form
+                handleRequest(list);
+                list.clear();
             }
-            if (response == null || response.length() == 0) {
-                Log.d(TAG, "response: '" + response + "', terminating loop");
-                break;
-            }
-
-            sendResponse(response);
-
             req = mDaemonProxy.receiveRequest();
         }
 
-        Log.d(TAG, "end of requests, closing control socket");
-        mDaemonProxy.closeControlSocket();
+        Log.d(TAG, "end of requests received");
 
         unregisterReceiver();
 
-        if (response == null || response.length() == 0)
-            mDaemonProxy.stop();
+        setVpnStateUp(req != null);
     }
 
-    private void sendResponse(String response) {
-        Log.d(TAG, "sending back reponse " + response);
+    private void sendResponse(String[] response) {
+        Log.d(TAG, "sending back reponse");
         try {
             mDaemonProxy.sendCommand(response);
         } catch (IOException e) {
@@ -123,73 +133,11 @@ class OpenconnectService extends VpnService<OpenconnectProfile> {
         }
     }
 
-    private String getText(String request) {
-        String[] fields = request.split("=X=", 2);
-        if (fields.length == 1)
-            return null;
-        return fields[0];
-    }
-
-    private String getTitle(String request) {
-        String[] fields = request.split("=X=", 2);
-        request = fields[fields.length - 1];
-
-        fields = request.split(":", 2);
-        if (fields.length < 1) {
-            return null;
-        } else {
-            Log.d(TAG, "Title for " + request + " is " + fields[0]);
-            return fields[0];
-        }
-    }
-
-    private String[] getChoices(String request) {
-        String[] fields = request.split("=X=", 2);
-        request = fields[fields.length - 1];
-
-        fields = request.split(":", 2);
-        if (fields.length < 2) {
-            return null;
-        }
-        request = fields[1].trim();
-
-        if (request.startsWith("[")) {
-            fields = request.split("\\[", 2);
-            if (fields.length < 2)
-                return null;
-            request = fields[1];
-        }
-
-        if (request.endsWith(":") && request.length() > 2) {
-            request = request.substring(0, request.length() - 2);
-        }
-
-        if (request.endsWith("]")) {
-            fields = request.split("\\]", 2);
-            if (fields.length < 2)
-                return null;
-            request = fields[0];
-        }
-
-        String[] choices = null;
-        if (request.length() > 0) {
-            choices = request.split("\\|");
-            Log.d(TAG, "choices for " + request + " are " +
-                    Arrays.toString(choices) + " (" + request.length() + ")");
-        }
-
-        return choices;
-    }
-
-    private void startRequestActivity(String request) {
+    private void startRequestActivity(List list) {
         Intent intent = new Intent(mContext, OpenconnectRequestActivity.class);
         intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-        intent.putExtra(OpenconnectRequestActivity.KEY_OPENCONNECT_TITLE,
-                getTitle(request));
-        intent.putExtra(OpenconnectRequestActivity.KEY_OPENCONNECT_TEXT,
-                getText(request));
-        intent.putExtra(OpenconnectRequestActivity.KEY_OPENCONNECT_CHOICES,
-                getChoices(request));
+        intent.putExtra(OpenconnectRequestActivity.KEY_OPENCONNECT_LIST,
+                list.toArray(new String[0]));
 
         registerReceiver();
 
@@ -200,15 +148,19 @@ class OpenconnectService extends VpnService<OpenconnectProfile> {
 
         @Override
         public void onReceive(Context context, Intent intent) {
-            String response =
-                intent.getStringExtra(OpenconnectService.EXTRA_RESPONSE);
-            if (response == null)
-                response = "";
+            String[] response =
+                intent.getStringArrayExtra(OpenconnectService.EXTRA_RESPONSE);
 
-            try {
-                mQueue.put(response);
-            } catch (InterruptedException e) {
-                Log.d(TAG, "waiting for queue: " + e);
+            synchronized (mResponseList) {
+                if (response == null) { // user cancelled
+                    mCancelled = true;
+                } else {
+                    for (String r : response) {
+                        mResponseList.add(r);
+                    }
+                }
+
+                mResponseList.notify();
             }
         }
 

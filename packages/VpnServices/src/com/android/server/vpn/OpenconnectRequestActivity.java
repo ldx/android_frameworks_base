@@ -36,124 +36,80 @@ import android.widget.TextView;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.List;
+import java.util.LinkedList;
 
 public class OpenconnectRequestActivity extends Activity
 implements OnDismissListener, OnCancelListener {
 
-    public static final String KEY_OPENCONNECT_TITLE = "key_oc_title";
-    public static final String KEY_OPENCONNECT_TEXT = "key_oc_text";
-    public static final String KEY_OPENCONNECT_CHOICES = "key_oc_choices";
+    public static final String KEY_OPENCONNECT_LIST = "key_oc_list";
 
     private static final String TAG =
         OpenconnectRequestActivity.class.getSimpleName();
 
-    private static final int DIALOG_CHOOSER = 0;
-    private static final int DIALOG_INPUT = 1;
+    private static final int OC_DIALOG = 0;
 
-    private String mTitle;
-    private String mText;
-    private CharSequence[] mChoices;
-    private boolean mEcho;
+    private static String TITLE = "Openconnect";
+
+    private List<OpenconnectRequest> mOptionList;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
         Intent intent = getIntent();
-
-        mTitle = intent.getStringExtra(KEY_OPENCONNECT_TITLE);
-        if (mTitle == null)
+        String[] arr = intent.getStringArrayExtra(
+                OpenconnectRequestActivity.KEY_OPENCONNECT_LIST);
+        mOptionList = getOptions(arr);
+        if (mOptionList == null || mOptionList.size() == 0) {
+            Log.d(TAG, "invalid form option list");
             return;
+        }
 
-        mText = intent.getStringExtra(KEY_OPENCONNECT_TEXT); // can be null
-
-        mChoices = intent.getStringArrayExtra(KEY_OPENCONNECT_CHOICES);
-
-        if (mTitle.toLowerCase().indexOf("password") != -1)
-            mEcho = false;
-        else
-            mEcho = true;
-
-        Log.d(TAG, "creating dialog title " + mTitle);
-        if (mChoices != null)
-            Log.d(TAG, "choices " + Arrays.toString(mChoices));
-
-        if (mChoices != null)
-            showDialog(DIALOG_CHOOSER);
-        else
-            showDialog(DIALOG_INPUT);
+        showDialog(OC_DIALOG);
     }
 
     @Override
     public void onDismiss(DialogInterface dialog) {
-        Log.d(TAG, "dialog dismissed");
     }
 
     @Override
     public void onCancel(DialogInterface dialog) {
-        Log.d(TAG, "dialog cancelled");
         sendResponse(null);
         this.finish();
     }
 
-    @Override
-    protected Dialog onCreateDialog(int id) {
-        AlertDialog ad = null;
-        AlertDialog.Builder builder;
-        final View view;
-
-        switch (id) {
-            case DIALOG_CHOOSER:
-                final Spinner spinner = new Spinner(this);
-                ArrayAdapter<CharSequence> adapter = new ArrayAdapter(
-                        this,
-                        android.R.layout.simple_spinner_item,
-                        mChoices);
-                adapter.setDropDownViewResource(
-                        android.R.layout.simple_spinner_dropdown_item);
-                spinner.setAdapter(adapter);
-                spinner.setSelection(0);
-                view = spinner;
-                break;
-
-            case DIALOG_INPUT:
-                final EditText et = new EditText(this);
-                et.setTransformationMethod(new PasswordTransformationMethod());
-                view = et;
-                break;
-
-            default:
-                Log.e(TAG, "invalid dialog id " + id);
-                return null;
+    private List<OpenconnectRequest> getOptions(String[] optarr) {
+        LinkedList<OpenconnectRequest> requests =
+            new LinkedList<OpenconnectRequest>();
+        for (String req : optarr) {
+            try {
+                OpenconnectRequest or = new OpenconnectRequest(req);
+                requests.add(or);
+            } catch (IOException e) {
+                Log.d(TAG, "error processing " + req + ": " + e);
+            }
         }
 
-        builder = new AlertDialog.Builder(this)
-            .setTitle(mTitle)
-            .setNegativeButton(android.R.string.cancel, new
-                    DialogInterface.OnClickListener() {
-                        public void onClick(DialogInterface dialog, int id) {
-                            String resp = null;
-                            Log.d(TAG, "input cancelled");
+        return requests;
+    }
 
-                            sendResponse(resp);
-                        }
-                    })
-        .setPositiveButton(android.R.string.ok,
-                new DialogInterface.OnClickListener() {
-                    public void onClick(DialogInterface dialog, int id) {
-                        String resp = null;
-                        if (view instanceof EditText)
-                            resp = ((EditText)view).getText().toString();
-                        else
-                            resp = mChoices[((Spinner)view).
-                                    getSelectedItemPosition()].toString();
-                        Log.d(TAG, "input: " + resp);
+    private String getViewText(View view) {
+        String val = null;
+        if (view instanceof EditText) {
+            val = ((EditText)view).getText().toString();
+        } else if (view instanceof Spinner) {
+            Spinner s = (Spinner)view;
+            String[] choices = (String[])s.getTag(R.string.vpn_openconnect_optchoices);
+            val = choices[s.getSelectedItemPosition()].toString();
+        }
 
-                        sendResponse(resp);
-                    }
-                });
+        return val;
+    }
 
-        LinearLayout ll = new LinearLayout(this);
+    @Override
+    protected Dialog onCreateDialog(int id) {
+        final LinearLayout ll = new LinearLayout(this);
         ll.setOrientation(LinearLayout.VERTICAL);
 
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
@@ -161,17 +117,89 @@ implements OnDismissListener, OnCancelListener {
                 LinearLayout.LayoutParams.WRAP_CONTENT);
         lp.setMargins(8, 4, 8, 4);
 
-        if (mText != null) {
+        for (OpenconnectRequest option : mOptionList) {
+            // add name of option first
             TextView tv = new TextView(this);
-            tv.setText(mText);
+            tv.setText(option.getLabel());
+            tv.setTag(R.string.vpn_openconnect_opttype, '?');
+            tv.setTag(R.string.vpn_openconnect_optname, "");
             ll.addView(tv, lp);
+
+            // input field based on option type
+            if (option.getType() == 'M') {
+                tv.setText(option.getValue());
+                tv.setTag(R.string.vpn_openconnect_opttype, option.getType());
+                tv.setTag(R.string.vpn_openconnect_optname, option.getName());
+            } else if (option.getType() == 'P') {
+                EditText et = new EditText(this);
+                if (option.getValue() != null)
+                    et.setText(option.getValue());
+                et.setTransformationMethod(new PasswordTransformationMethod());
+                et.setTag(R.string.vpn_openconnect_opttype, option.getType());
+                et.setTag(R.string.vpn_openconnect_optname, option.getName());
+                ll.addView(et, lp);
+            } else if (option.getType() == 'T') {
+                EditText et = new EditText(this);
+                if (option.getValue() != null)
+                    et.setText(option.getValue());
+                et.setTag(R.string.vpn_openconnect_opttype, option.getType());
+                et.setTag(R.string.vpn_openconnect_optname, option.getName());
+                ll.addView(et, lp);
+            } else if (option.getType() == 'S') {
+                Spinner spinner = new Spinner(this);
+                ArrayAdapter<CharSequence> adapter = new ArrayAdapter(
+                        this,
+                        android.R.layout.simple_spinner_item,
+                        option.getChoiceLabels());
+                adapter.setDropDownViewResource(
+                        android.R.layout.simple_spinner_dropdown_item);
+                spinner.setAdapter(adapter);
+                spinner.setSelection(0);
+                spinner.setTag(R.string.vpn_openconnect_opttype, option.getType());
+                spinner.setTag(R.string.vpn_openconnect_optname, option.getName());
+                spinner.setTag(R.string.vpn_openconnect_optchoices, option.getChoiceNames());
+                ll.addView(spinner, lp);
+            }
         }
 
-        ll.addView(view, lp);
+        AlertDialog.Builder builder = new AlertDialog.Builder(this)
+            .setTitle(TITLE)
+            .setNegativeButton(android.R.string.cancel, new
+                    DialogInterface.OnClickListener() {
+                        public void onClick(DialogInterface dialog, int id) {
+                            Log.d(TAG, "input cancelled");
+                            sendResponse(null);
+                        }
+                    })
+        .setPositiveButton(android.R.string.ok,
+                new DialogInterface.OnClickListener() {
+                    public void onClick(DialogInterface dialog, int id) {
+                        LinkedList<String> resplist = new LinkedList<String>();
+                        int i;
+                        for (i = 0; i < ll.getChildCount(); i++) {
+                            View v = ll.getChildAt(i);
+                            if (v == null) {
+                                Log.e(TAG, "invalid view position " + i);
+                                continue;
+                            }
+                            String value = getViewText(v);
+                            if (value == null) {
+                                continue;
+                            }
+                            char type = (Character)v.getTag(
+                                R.string.vpn_openconnect_opttype);
+                            String name = (String)v.getTag(
+                                R.string.vpn_openconnect_optname);
+                            if (type != '?')
+                                resplist.add(type + " " + name + "=" + value);
+                        }
 
+                        sendResponse(resplist.toArray(new String[0]));
+                    }
+                });
         builder.setView(ll);
 
-        ad = builder.create();
+        AlertDialog ad = builder.create();
 
         ad.setOnDismissListener(this);
         ad.setOnCancelListener(this);
@@ -179,7 +207,7 @@ implements OnDismissListener, OnCancelListener {
         return ad;
     }
 
-    private void sendResponse(String response) {
+    private void sendResponse(String[] response) {
         Intent intent =
             new Intent(OpenconnectService.ACTION_SEND_RESPONSE);
         intent.putExtra(OpenconnectService.EXTRA_RESPONSE, response);
