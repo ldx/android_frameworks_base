@@ -211,7 +211,7 @@ implements OnDismissListener, OnCancelListener {
         Intent intent =
             new Intent(OpenconnectService.ACTION_SEND_RESPONSE);
         intent.putExtra(OpenconnectService.EXTRA_RESPONSE, response);
-        sendBroadcast(intent);
+        sendBroadcast(intent, "android.net.vpn.OPENCONNECT_REQUEST");
 
         OpenconnectRequestActivity.this.finish();
     }

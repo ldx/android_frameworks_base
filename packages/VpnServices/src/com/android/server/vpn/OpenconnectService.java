@@ -123,7 +123,8 @@ class OpenconnectService extends VpnService<OpenconnectProfile> {
         IntentFilter filter = new IntentFilter();
         filter.addAction(OpenconnectService.ACTION_SEND_RESPONSE);
         mResponseReceiver = new ResponseReceiver();
-        mContext.registerReceiver(mResponseReceiver, filter);
+        mContext.registerReceiver(mResponseReceiver, filter,
+                "android.net.vpn.OPENCONNECT_REQUEST", null);
     }
 
     private void unregisterReceiver() {

@@ -3,7 +3,14 @@
         package="com.android.server.vpn"
         android:sharedUserId="android.uid.system"
         >
-    <application android:label="@string/app_label">
+
+    <permission android:name="android.net.vpn.OPENCONNECT_REQUEST"
+        android:label="@string/permlab_openconnect_request"
+        android:description="@string/permdesc_openconnect_request"
+        android:permissionGroup="android.permission-group.NETWORK"
+        android:protectionLevel="signatureOrSystem" />
+
+   <application android:label="@string/app_label">
 
         <service android:name=".VpnServiceBinder" android:process=":remote">
             <intent-filter>
@@ -26,4 +33,5 @@
     </application>
 
     <uses-permission android:name="android.permission.INTERNET"></uses-permission>
+
 </manifest>

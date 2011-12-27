@@ -10,5 +10,8 @@
     <string name="vpn_openconnect_opttype">Openconnect option type</string>
     <string name="vpn_openconnect_optname">Openconnect option name</string>
     <string name="vpn_openconnect_optchoices">Openconnect option choices</string>
+
+    <string name="permlab_openconnect_request">send or receive Openconnect VPN parameters</string>
+    <string name="permdesc_openconnect_request">Allows to send or receive Openconnect VPN parameters.</string>
 </resources>
 
