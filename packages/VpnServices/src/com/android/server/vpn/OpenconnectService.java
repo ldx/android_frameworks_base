@@ -107,6 +107,11 @@ class OpenconnectService extends VpnService<OpenconnectProfile> {
         setVpnStateUp(req != null);
     }
 
+    @Override
+    protected void recover() {
+        onError(0);
+    }
+
     private void sendResponse(String[] response) {
         Log.d(TAG, "sending back reponse");
         try {
